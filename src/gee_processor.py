@@ -4,6 +4,7 @@ Google Earth Engine Processor for Global Sentinel-1 SAR Imagery & Satellite Tile
 import ee
 import folium
 from config import GEE_PROJECT_ID
+import streamlit as st
 
 def initialize_gee(project_id: str = None):
     """Initializes Google Earth Engine API with a Google Cloud Project ID."""
@@ -21,6 +22,7 @@ def initialize_gee(project_id: str = None):
         else:
             ee.Initialize()
 
+@st.cache_data(show_spinner=False)
 def get_global_sentinel1_sar(geometry_bbox, start_date, end_date):
     """Retrieves global Sentinel-1 SAR GRD VV backscatter median composite."""
     roi = ee.Geometry.BBox(*geometry_bbox)
