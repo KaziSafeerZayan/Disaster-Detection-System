@@ -10,6 +10,7 @@ from datetime import datetime, timedelta
 import sys
 import os
 import pandas as pd
+import plotly.express as px
 
 # Ensure root directory is in system path
 sys.path.append(os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
@@ -185,7 +186,7 @@ col_g1, col_g2 = st.columns([3, 1])
 with col_g1:
     regions_list = list(GLOBAL_REGIONS.keys())
     current_index = regions_list.index(st.session_state["selected_region_name"]) if st.session_state["selected_region_name"] in regions_list else 0
-    
+
     def update_global_region():
         st.session_state["selected_region_name"] = st.session_state["global_region_selectbox"]
 
@@ -238,7 +239,7 @@ st.markdown("### 🛰️ Phase 1: Satellite Radar & Multi-Hazard Map")
 
 with st.container():
     st.markdown('<div class="phase-container">', unsafe_allow_html=True)
-    
+
     col_date1, col_date2 = st.columns(2)
     with col_date1:
         start_date = st.date_input("SAR Data Start Date", datetime.now() - timedelta(days=10))
@@ -263,9 +264,9 @@ with st.container():
         t_data = topo_profile.get(reg_name, {"elevation": 8.0, "fault_dist": 75})
         is_high_hazard = t_data["elevation"] < 5.0 or t_data["fault_dist"] < 20
         is_mod_hazard = t_data["elevation"] < 15.0 or t_data["fault_dist"] < 60
-        
+
         color, hazard_lbl = ("red", "HIGH HAZARD") if is_high_hazard else (("orange", "MODERATE HAZARD") if is_mod_hazard else ("green", "STABLE"))
-        
+
         popup_html = f"""
         <div style="font-family: sans-serif; width: 190px;">
             <h4 style="margin:0; color: #1e293b;">{reg_name}</h4>
@@ -281,20 +282,20 @@ with st.container():
         ).add_to(m)
 
     folium.LayerControl().add_to(m)
-    
+
     map_output = st_folium(
-        m, 
-        width="100%", 
-        height=500, 
+        m,
+        width="100%",
+        height=500,
         key="multi_hazard_map",
         returned_objects=["last_clicked"]
     )
-    
+
     if map_output and map_output.get("last_clicked"):
         click_data = map_output["last_clicked"]
         c_lat = click_data.get("lat")
         c_lon = click_data.get("lng")
-        
+
         if c_lat is not None and c_lon is not None:
             closest_reg = None
             min_dist = float("inf")
@@ -303,7 +304,7 @@ with st.container():
                 if dist < min_dist:
                     min_dist = dist
                     closest_reg = r_name
-            
+
             if closest_reg and min_dist < 1.5:
                 if st.session_state.get("selected_region_name") != closest_reg:
                     st.session_state["selected_region_name"] = closest_reg
@@ -319,7 +320,7 @@ st.markdown(f"### 📊 Phase 2: Topological & Seismic Analytics — {st.session_
 
 with st.container():
     st.markdown('<div class="phase-container">', unsafe_allow_html=True)
-    
+
     # Live Telemetry Terminal Stream
     st.markdown(f"""
         <div class="telemetry-log">
@@ -354,7 +355,7 @@ with st.container():
 
     fault_dist = current_topo["fault_dist"]
     seismic_tier = current_topo["seismic_tier"]
-    
+
     if simulated_eq_mag >= 7.5 or (fault_dist < 20 and simulated_eq_mag >= 7.0):
         eq_status = f"🔴 SEISMIC EMERGENCY: Magnitude {simulated_eq_mag} Event Causes Major Tectonic Strain!"
     elif simulated_eq_mag >= 6.5:
@@ -365,7 +366,7 @@ with st.container():
         eq_status = f"🟢 LOW IMPACT: Magnitude {simulated_eq_mag} Within Structural Tolerance Limits"
 
     col_div1, col_div2 = st.columns(2)
-    
+
     with col_div1:
         st.subheader("🌊 Division 1: Floods & Waterlogging")
         st.info(flood_status)
@@ -384,11 +385,38 @@ with st.container():
 
     st.markdown("---")
     st.subheader("📈 14-Day Hydro-Seismic Stress Monitoring (Dynamic Simulation)")
+
+    # Generate data and reverse the category array order so Day -1 is on the left
     multiplier = (base_pop % 4) + 2 + (simulated_water_rise * 0.4) + ((simulated_eq_mag - 5.0) * 0.4)
     stress_levels = [round(max(0.5, multiplier + (i * 0.15) + (0.3 * (i % 3))), 2) for i in range(14)]
-    chart_df = pd.DataFrame({'Day': [f"Day -{i}" for i in range(14, 0, -1)], 'Simulated Hazard Stress Index': stress_levels})
-    st.line_chart(chart_df.set_index('Day'))
-        
+
+    chart_df = pd.DataFrame({
+        'Day Offset': [f"Day {i}" for i in range(-14, 0)],
+        'Simulated Hazard Stress Index': stress_levels,
+        'SortKey': range(-14, 0)
+    })
+    chart_df = chart_df.sort_values('SortKey')
+
+    # Reverse the array order so it displays Day -1 down to Day -14 left-to-right
+    reversed_days = chart_df['Day Offset'].tolist()[::-1]
+
+    fig = px.line(
+        chart_df,
+        x='Day Offset',
+        y='Simulated Hazard Stress Index',
+        markers=True,
+        template="plotly_dark"
+    )
+    fig.update_traces(line=dict(color="#38bdf8", width=3), marker=dict(size=8, color="#60a5fa"))
+    fig.update_layout(
+        paper_bgcolor="rgba(0,0,0,0)",
+        plot_bgcolor="rgba(0,0,0,0)",
+        margin=dict(l=10, r=10, t=10, b=10),
+        xaxis=dict(title="", categoryorder="array", categoryarray=reversed_days),
+        yaxis=dict(title="Stress Index")
+    )
+    st.plotly_chart(fig, use_container_width=True)
+
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ==========================================
@@ -399,7 +427,7 @@ st.markdown(f"### 🚨 Phase 3: Emergency Protocols & Division Responses — {st
 
 with st.container():
     st.markdown('<div class="phase-container">', unsafe_allow_html=True)
-    
+
     col_al1, col_al2 = st.columns(2)
     with col_al1:
         st.error("🌊 **Flood Division Protocol**")
@@ -407,5 +435,5 @@ with st.container():
     with col_al2:
         st.warning("🌋 **Earthquake Division Protocol**")
         st.write(f"Simulated M{simulated_eq_mag} shock triggers automated gas-line shutoffs, bridge structural integrity scans, and emergency dispatch protocols.")
-        
+
     st.markdown('</div>', unsafe_allow_html=True)
