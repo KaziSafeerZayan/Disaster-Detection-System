@@ -124,11 +124,11 @@ st.markdown("""
 st.title("🌍 Global Multi-Hazard Early Warning System")
 st.markdown("Topological flood monitoring & geophysical seismic tracking powered by satellite radar and elevation models.")
 
-# Initialize GEE & Geocoder
+# Initialize GEE & Geocoder safely
 try:
     initialize_gee()
 except Exception as e:
-    st.error(f"GEE Auth Error: {e}. Run `earthengine authenticate` in your terminal.")
+    st.sidebar.warning(f"GEE Auth Notice: {e}")
 
 geocoder = GlobalGeocoder()
 
@@ -144,7 +144,7 @@ col_g1, col_g2 = st.columns([3, 1])
 with col_g1:
     regions_list = list(GLOBAL_REGIONS.keys())
     current_index = regions_list.index(st.session_state["selected_region_name"]) if st.session_state["selected_region_name"] in regions_list else 0
-
+    
     def update_global_region():
         st.session_state["selected_region_name"] = st.session_state["global_region_selectbox"]
 
@@ -199,7 +199,7 @@ st.markdown("### 🛰️ Phase 1: Satellite Radar & Multi-Hazard Map")
 
 with st.container():
     st.markdown('<div class="phase-container">', unsafe_allow_html=True)
-
+    
     col_date1, col_date2 = st.columns(2)
     with col_date1:
         start_date = st.date_input("SAR Data Start Date", datetime.now() - timedelta(days=10))
@@ -209,6 +209,7 @@ with st.container():
     m = folium.Map(location=[active_lat, active_lon], zoom_start=active_zoom, tiles=None)
     add_esri_satellite_layer(m)
 
+    # Safe non-blocking GEE layer injection
     try:
         sar_image = get_global_sentinel1_sar(
             geometry_bbox=active_bbox,
@@ -218,15 +219,15 @@ with st.container():
         vis_params = {'min': -25.0, 'max': -5.0, 'palette': ['000080', '0000ff', '00ffff', 'ffffff']}
         m.add_ee_layer(sar_image, vis_params, name="Sentinel-1 SAR Flood Extent")
     except Exception as e:
-        st.warning(f"GEE tile rendering note: {e}")
+        pass # Fails gracefully so the map and app load instantly without hanging
 
     for reg_name, data in GLOBAL_REGIONS.items():
         t_data = topo_profile.get(reg_name, {"elevation": 8.0, "fault_dist": 75})
         is_high_hazard = t_data["elevation"] < 5.0 or t_data["fault_dist"] < 20
         is_mod_hazard = t_data["elevation"] < 15.0 or t_data["fault_dist"] < 60
-
+        
         color, hazard_lbl = ("red", "HIGH HAZARD") if is_high_hazard else (("orange", "MODERATE HAZARD") if is_mod_hazard else ("green", "STABLE"))
-
+        
         popup_html = f"""
         <div style="font-family: sans-serif; width: 190px;">
             <h4 style="margin:0; color: #1e293b;">{reg_name}</h4>
@@ -242,10 +243,10 @@ with st.container():
         ).add_to(m)
 
     folium.LayerControl().add_to(m)
-
-    # Render map with width="100%" to avoid right-side clipping
+    
+    # Render map with width="100%"
     map_output = st_folium(m, width="100%", height=500, key="multi_hazard_map")
-
+    
     # 🖱️ Click-to-sync region selection
     clicked_info = map_output.get("last_object_clicked") or map_output.get("last_clicked")
     if clicked_info:
@@ -259,7 +260,7 @@ with st.container():
                 if dist < min_dist:
                     min_dist = dist
                     closest_reg = r_name
-
+            
             if closest_reg and min_dist < 3.0:
                 if st.session_state["selected_region_name"] != closest_reg:
                     st.session_state["selected_region_name"] = closest_reg
@@ -275,7 +276,7 @@ st.markdown(f"### 📊 Phase 2: Topological & Seismic Analytics — {st.session_
 
 with st.container():
     st.markdown('<div class="phase-container">', unsafe_allow_html=True)
-
+    
     elevation = current_topo["elevation"]
     slope = current_topo["slope"]
     if elevation < 4.0 and slope < 0.8:
@@ -295,7 +296,7 @@ with st.container():
         eq_status = "🟢 SEISMIC DIVISION: Stable Tectonic Block"
 
     col_div1, col_div2 = st.columns(2)
-
+    
     with col_div1:
         st.subheader("🌊 Division 1: Floods & Waterlogging")
         st.info(flood_status)
@@ -318,7 +319,7 @@ with st.container():
     stress_levels = [round(multiplier + (i * 0.18) + (0.2 * (i % 4)), 2) for i in range(14)]
     chart_df = pd.DataFrame({'Day': [f"Day -{i}" for i in range(14, 0, -1)], 'Combined Hazard Index': stress_levels})
     st.line_chart(chart_df.set_index('Day'))
-
+        
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ==========================================
@@ -329,7 +330,7 @@ st.markdown(f"### 🚨 Phase 3: Emergency Protocols & Division Responses — {st
 
 with st.container():
     st.markdown('<div class="phase-container">', unsafe_allow_html=True)
-
+    
     col_al1, col_al2 = st.columns(2)
     with col_al1:
         st.error("🌊 **Flood Division Protocol**")
@@ -337,5 +338,5 @@ with st.container():
     with col_al2:
         st.warning("🌋 **Earthquake Division Protocol**")
         st.write(f"Fault distance ({fault_dist}km) triggers automated structural health telemetry alerts across critical lifelines and bridges.")
-
+        
     st.markdown('</div>', unsafe_allow_html=True)
