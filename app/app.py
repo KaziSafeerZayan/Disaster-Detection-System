@@ -1,7 +1,7 @@
 """
 Global Multi-Hazard Early Warning System
 Single-Page App with Dual-Division Risk (Floods & Earthquakes), Anti-Flicker Locks,
-Global Location Command Center, and Map Click-to-Sync.
+Global Location Command Center, Map Click-to-Sync, and Interactive Scenario Simulators.
 """
 import streamlit as st
 import folium
@@ -144,7 +144,7 @@ col_g1, col_g2 = st.columns([3, 1])
 with col_g1:
     regions_list = list(GLOBAL_REGIONS.keys())
     current_index = regions_list.index(st.session_state["selected_region_name"]) if st.session_state["selected_region_name"] in regions_list else 0
-
+    
     def update_global_region():
         st.session_state["selected_region_name"] = st.session_state["global_region_selectbox"]
 
@@ -199,7 +199,7 @@ st.markdown("### 🛰️ Phase 1: Satellite Radar & Multi-Hazard Map")
 
 with st.container():
     st.markdown('<div class="phase-container">', unsafe_allow_html=True)
-
+    
     col_date1, col_date2 = st.columns(2)
     with col_date1:
         start_date = st.date_input("SAR Data Start Date", datetime.now() - timedelta(days=10))
@@ -225,9 +225,9 @@ with st.container():
         t_data = topo_profile.get(reg_name, {"elevation": 8.0, "fault_dist": 75})
         is_high_hazard = t_data["elevation"] < 5.0 or t_data["fault_dist"] < 20
         is_mod_hazard = t_data["elevation"] < 15.0 or t_data["fault_dist"] < 60
-
+        
         color, hazard_lbl = ("red", "HIGH HAZARD") if is_high_hazard else (("orange", "MODERATE HAZARD") if is_mod_hazard else ("green", "STABLE"))
-
+        
         popup_html = f"""
         <div style="font-family: sans-serif; width: 190px;">
             <h4 style="margin:0; color: #1e293b;">{reg_name}</h4>
@@ -243,34 +243,32 @@ with st.container():
         ).add_to(m)
 
     folium.LayerControl().add_to(m)
-
+    
     # Render map and explicitly capture click events using returned_objects
     map_output = st_folium(
-        m,
-        width="100%",
-        height=500,
+        m, 
+        width="100%", 
+        height=500, 
         key="multi_hazard_map",
         returned_objects=["last_clicked"]
     )
-
+    
     # 🖱️ Direct Marker / Map Click-to-Sync Engine
     if map_output and map_output.get("last_clicked"):
         click_data = map_output["last_clicked"]
         c_lat = click_data.get("lat")
         c_lon = click_data.get("lng")
-
+        
         if c_lat is not None and c_lon is not None:
             closest_reg = None
             min_dist = float("inf")
-
+            
             for r_name, r_info in GLOBAL_REGIONS.items():
-                # Euclidean distance calculation in coordinate space
                 dist = ((r_info["lat"] - c_lat) ** 2 + (r_info["lon"] - c_lon) ** 2) ** 0.5
                 if dist < min_dist:
                     min_dist = dist
                     closest_reg = r_name
-
-            # If clicked within 1.5 degrees (~150km radius) of any marker, switch global region instantly
+            
             if closest_reg and min_dist < 1.5:
                 if st.session_state.get("selected_region_name") != closest_reg:
                     st.session_state["selected_region_name"] = closest_reg
@@ -279,57 +277,70 @@ with st.container():
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ==========================================
-# PHASE 2: TOPOLOGICAL & SEISMIC ANALYTICS
+# PHASE 2: TOPOLOGICAL & SEISMIC ANALYTICS + PREDICTIVE SIMULATORS
 # ==========================================
 st.markdown('<div id="phase-2"></div>', unsafe_allow_html=True)
 st.markdown(f"### 📊 Phase 2: Topological & Seismic Analytics — {st.session_state['selected_region_name']}")
 
 with st.container():
     st.markdown('<div class="phase-container">', unsafe_allow_html=True)
+    
+    # 🧪 Interactive Science Fair "What-If" Simulator Sliders
+    st.markdown("#### 🎛️ Live Predictive Scenario Simulator")
+    sim_col1, sim_col2 = st.columns(2)
+    with sim_col1:
+        simulated_water_rise = st.slider("🌊 Simulated Water Level Rise (m)", 0.0, 5.0, 0.0, 0.5)
+    with sim_col2:
+        simulated_eq_mag = st.slider("🌋 Simulated Earthquake Shock (Richter)", 5.0, 9.0, 6.5, 0.1)
 
-    elevation = current_topo["elevation"]
+    st.markdown("---")
+
+    base_elevation = current_topo["elevation"]
+    effective_elevation = max(0.0, base_elevation - simulated_water_rise)
     slope = current_topo["slope"]
-    if elevation < 4.0 and slope < 0.8:
-        flood_status = "🔴 FLOOD DIVISION: Critical Hydro-Inundation Risk (Low Basin Elevation)"
-    elif elevation < 12.0:
-        flood_status = "🟠 FLOOD DIVISION: Moderate Waterlogging Potential"
+
+    if effective_elevation < 3.0 and slope < 0.8:
+        flood_status = "🔴 CRITICAL INUNDATION: Severe Hydro-Flooding Under Simulation!"
+    elif effective_elevation < 8.0:
+        flood_status = "🟠 ELEVATED RISK: Moderate Waterlogging & Runoff Stress"
     else:
-        flood_status = "🟢 FLOOD DIVISION: Low Flood Vulnerability (High Elevation/Slope)"
+        flood_status = "🟢 STABLE: Low Vulnerability to Current Simulated Rise"
 
     fault_dist = current_topo["fault_dist"]
     seismic_tier = current_topo["seismic_tier"]
-    if fault_dist < 15 or seismic_tier == "Critical":
-        eq_status = "🔴 SEISMIC DIVISION: High Tectonic Strain / Active Fault Proximity"
-    elif fault_dist < 50 or seismic_tier == "High":
-        eq_status = "🟠 SEISMIC DIVISION: Moderate Fault Activity Zone"
+    
+    if simulated_eq_mag >= 7.5 or (fault_dist < 20 and simulated_eq_mag >= 7.0):
+        eq_status = f"🔴 SEISMIC EMERGENCY: Magnitude {simulated_eq_mag} Event Causes Major Tectonic Strain!"
+    elif simulated_eq_mag >= 6.5:
+        eq_status = f"🟠 MODERATE SHOCK: Magnitude {simulated_eq_mag} Felt Across Regional Footprint"
     else:
-        eq_status = "🟢 SEISMIC DIVISION: Stable Tectonic Block"
+        eq_status = f"🟢 LOW IMPACT: Magnitude {simulated_eq_mag} Within Structural Tolerance Limits"
 
     col_div1, col_div2 = st.columns(2)
-
+    
     with col_div1:
         st.subheader("🌊 Division 1: Floods & Waterlogging")
         st.info(flood_status)
-        st.metric("Topographical Elevation", f"{elevation} meters", "DEM Relative to Sea Level")
+        st.metric("Effective Elevation (Simulated)", f"{effective_elevation:.1f} meters", f"Base: {base_elevation}m (-{simulated_water_rise}m)")
         st.metric("Basin Drainage Slope", f"{slope}°", "Surface Runoff Gradient")
-        flood_exposed_pop = int(base_pop * (0.25 if elevation < 5.0 else 0.08))
-        st.write(f"👥 **Estimated Population Exposure:** {flood_exposed_pop:,} residents in low-lying sectors.")
+        flood_exposed_pop = int(base_pop * (0.35 if effective_elevation < 3.0 else (0.15 if effective_elevation < 8.0 else 0.05)))
+        st.write(f"👥 **Simulated Population Exposure:** {flood_exposed_pop:,} residents affected.")
 
     with col_div2:
         st.subheader("🌋 Division 2: Earthquakes & Seismicity")
         st.warning(eq_status)
-        st.metric("Active Fault Proximity", f"{fault_dist} km", "Nearest Major Seismic Fault Line")
-        st.metric("Seismic Hazard Tier", seismic_tier, "Peak Ground Acceleration Model")
-        eq_exposed_pop = int(base_pop * (0.40 if seismic_tier == "Critical" else 0.15))
-        st.write(f"👥 **Estimated Population Exposure:** {eq_exposed_pop:,} residents in urban footprint.")
+        st.metric("Active Fault Proximity", f"{fault_dist} km", "Nearest Major Fault Line")
+        st.metric("Simulated Shock Magnitude", f"M {simulated_eq_mag}", f"Base Tier: {seismic_tier}")
+        eq_exposed_pop = int(base_pop * (0.50 if simulated_eq_mag >= 7.5 else (0.25 if simulated_eq_mag >= 6.5 else 0.10)))
+        st.write(f"👥 **Simulated Population Exposure:** {eq_exposed_pop:,} residents affected.")
 
     st.markdown("---")
-    st.subheader("📈 14-Day Hydro-Seismic Stress Monitoring")
-    multiplier = (base_pop % 4) + 2
-    stress_levels = [round(multiplier + (i * 0.18) + (0.2 * (i % 4)), 2) for i in range(14)]
-    chart_df = pd.DataFrame({'Day': [f"Day -{i}" for i in range(14, 0, -1)], 'Combined Hazard Index': stress_levels})
+    st.subheader("📈 14-Day Hydro-Seismic Stress Monitoring (Dynamic Simulation)")
+    multiplier = (base_pop % 4) + 2 + (simulated_water_rise * 0.4) + ((simulated_eq_mag - 6.0) * 0.5)
+    stress_levels = [round(multiplier + (i * 0.15) + (0.3 * (i % 3)), 2) for i in range(14)]
+    chart_df = pd.DataFrame({'Day': [f"Day -{i}" for i in range(14, 0, -1)], 'Simulated Hazard Stress Index': stress_levels})
     st.line_chart(chart_df.set_index('Day'))
-
+        
     st.markdown('</div>', unsafe_allow_html=True)
 
 # ==========================================
@@ -340,13 +351,13 @@ st.markdown(f"### 🚨 Phase 3: Emergency Protocols & Division Responses — {st
 
 with st.container():
     st.markdown('<div class="phase-container">', unsafe_allow_html=True)
-
+    
     col_al1, col_al2 = st.columns(2)
     with col_al1:
         st.error("🌊 **Flood Division Protocol**")
-        st.write(f"Elevation analysis ({elevation}m) dictates automated deployment of mobile drainage units to low topographical depressions upon radar saturation.")
+        st.write(f"Simulated water level ({effective_elevation}m effective) triggers automated pump station deployment and evacuation alerts across vulnerable sectors.")
     with col_al2:
         st.warning("🌋 **Earthquake Division Protocol**")
-        st.write(f"Fault distance ({fault_dist}km) triggers automated structural health telemetry alerts across critical lifelines and bridges.")
-
+        st.write(f"Simulated M{simulated_eq_mag} shock triggers automated gas-line shutoffs, bridge structural integrity scans, and emergency dispatch protocols.")
+        
     st.markdown('</div>', unsafe_allow_html=True)
