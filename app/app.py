@@ -219,7 +219,7 @@ with st.container():
         vis_params = {'min': -25.0, 'max': -5.0, 'palette': ['000080', '0000ff', '00ffff', 'ffffff']}
         m.add_ee_layer(sar_image, vis_params, name="Sentinel-1 SAR Flood Extent")
     except Exception as e:
-        pass # Fails gracefully so the map and app load instantly without hanging
+        pass
 
     for reg_name, data in GLOBAL_REGIONS.items():
         t_data = topo_profile.get(reg_name, {"elevation": 8.0, "fault_dist": 75})
@@ -247,7 +247,7 @@ with st.container():
     # Render map with width="100%"
     map_output = st_folium(m, width="100%", height=500, key="multi_hazard_map")
     
-    # 🖱️ Click-to-sync region selection
+    # 🖱️ Click-to-sync region selection (instantly switches global location when map icon is clicked)
     clicked_info = map_output.get("last_object_clicked") or map_output.get("last_clicked")
     if clicked_info:
         c_lat = clicked_info.get("lat")
